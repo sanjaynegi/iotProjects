@@ -8,7 +8,7 @@ SoftwareSerial mySerial(10, 11); //Connect Tx, Rx of FP sensor
 
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 
-ThreeWire myWire(6,7,5); // IO, SCLK, CE
+ThreeWire myWire(6,7,5); // IO, SCLK, CE (Data, clock, reset)
 RtcDS1302<ThreeWire> Rtc(myWire);
 
 // const int chipSelect = 4;
@@ -19,10 +19,12 @@ uint8_t id;
 void setup()
 {
   Serial.begin(9600);
+  Serial1.begin(9600);
   while (!Serial);  // For Yun/Leo/Micro/Zero/...
   delay(1);
 
   Serial.println(F("Running setup......"));
+   Serial1.println(F("Running setup......"));
 
   // set the data rate for the sensor serial port
   finger.begin(57600);
@@ -50,16 +52,25 @@ void setup()
   Serial.println(F("\ncard initialized."));
   // Serial.print("---------------------------------------------------------");
   
-    Serial.println(F("Waiting for valid finger..."));
+    Serial.println(F("Place finger to authenticate"));
   
    Rtc.Begin();
 }
 
 void loop() {
   // Serial.println("Running loop...");
+
   if (Serial.available()) {
     String input = Serial.readStringUntil('\n');
     if (input == "enroll") {
+      // Enroll fingerprint
+      enrollFingerprint();
+    }
+  }
+  if (Serial1.available()) {
+    int blInput = Serial1.read();
+    Serial.println(blInput);
+    if (blInput == "e") {
       // Enroll fingerprint
       enrollFingerprint();
     }
@@ -284,7 +295,7 @@ int getFingerprintIDez() {
     }else {
     Serial.print(F("error opening file: "));Serial.print(filename);
   }
-  Serial.println(F("\nPlace finger to authorize"));
+  Serial.println(F("\nPlace finger to authenticate"));
   return finger.fingerID;
 }
 
