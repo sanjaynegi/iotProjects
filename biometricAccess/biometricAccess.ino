@@ -15,6 +15,8 @@ RtcDS1302<ThreeWire> Rtc(myWire);
 
 //File logFile;
 
+File dataFile; // File object to handle data file
+
 uint8_t id;
 void setup()
 {
@@ -24,7 +26,6 @@ void setup()
   delay(1);
 
   Serial.println(F("Running setup......"));
-   Serial1.println(F("Running setup......"));
 
   // set the data rate for the sensor serial port
   finger.begin(57600);
@@ -67,15 +68,6 @@ void loop() {
       enrollFingerprint();
     }
   }
-  if (Serial1.available()) {
-    int blInput = Serial1.read();
-    Serial.println(blInput);
-    if (blInput == "e") {
-      // Enroll fingerprint
-      enrollFingerprint();
-    }
-  }
-
   // Verification loop
   getFingerprintIDez();
   // delay(3000);
@@ -90,6 +82,15 @@ uint8_t readnumber(void) {
   }
   return num;
 }
+String readname(void) {
+  String name = "";
+
+  while (name == "") {
+    while (! Serial.available());
+    name = Serial.readStringUntil('\n');
+  }
+  return name;
+}
 
 void enrollFingerprint() {
   Serial.println(F("Type in the ID # "));
@@ -98,8 +99,10 @@ void enrollFingerprint() {
   if (id == 0) {// ID #0 not allowed, try again!
      return;
   }
-  Serial.print(F("Enrolling ID #"));
-  Serial.println(id);
+  Serial.print(F("Enter name for ID # "));Serial.println(id);
+  String name = readname();
+  Serial.print(F("Entered name: "));Serial.println(name);
+  addData(name, id);
 
   while (!  getFingerprintEnroll() ){
     delay(1000);
@@ -263,6 +266,7 @@ int getFingerprintIDez() {
   Serial.print(F("Found ID #")); Serial.print(finger.fingerID);
   Serial.print(F(" with confidence of ")); Serial.println(finger.confidence);
   RtcDateTime now = Rtc.GetDateTime();
+  String name = searchName(finger.fingerID);
 
   File logFile;
 
@@ -289,6 +293,8 @@ int getFingerprintIDez() {
      logFile.print(now.Second(), DEC);
     logFile.print(" | ");
     logFile.print(id);
+    logFile.print(" | ");
+    logFile.print(name);
     logFile.print("\n");
     logFile.close();
     Serial.println(F("\nDone writing"));
@@ -297,6 +303,92 @@ int getFingerprintIDez() {
   }
   Serial.println(F("\nPlace finger to authenticate"));
   return finger.fingerID;
+}
+
+String searchName(int searchID) {
+  String line;
+  
+  // Open file in read mode
+  dataFile = SD.open("userdata.txt");
+  if (dataFile) {
+    // Read each line from the file
+    while (dataFile.available()) {
+      line = dataFile.readStringUntil('\n');
+      
+      // Split the line into name and ID
+      int separatorIndex = line.indexOf('|');
+      String name = line.substring(0, separatorIndex);
+      int id = line.substring(separatorIndex + 1).toInt();
+      
+      // Check if the ID matches the search ID
+      if (id == searchID) {
+        dataFile.close();
+        return name; // Return the name if ID is found
+      }
+      //Serial.println(F("name not found"));
+    }
+    dataFile.close();
+  } else {
+    Serial.println(F("Error opening file for reading!"));
+  }
+  
+  return ""; // Return empty string if ID is not found
+}
+
+void addData(String name, int id) {
+  dataFile = SD.open("userdata.txt");
+  if (dataFile) {
+    bool entryExists = false;
+    String line;
+    
+    // Read each line from the file
+    while (dataFile.available()) {
+      line = dataFile.readStringUntil('\n');
+      
+      // Split the line into name and ID
+      int separatorIndex = line.indexOf('|');
+      String existingName = line.substring(0, separatorIndex);
+      int existingID = line.substring(separatorIndex + 1).toInt();
+      
+      // Check if the name and ID combination already exists
+      if (existingName.equals(name) && existingID == id) {
+        entryExists = true;
+        break;
+      }
+    }
+    dataFile.close();
+    
+    // If the entry doesn't exist, add it to the file
+    if (!entryExists) {
+      dataFile = SD.open("userdata.txt", FILE_WRITE);
+      if (dataFile) {
+        // Write name and ID in pipe-separated format
+        dataFile.print(name);
+        dataFile.print("|");
+        dataFile.println(id);
+        dataFile.close();
+        Serial.println(F("Name written to file"));
+      } else {
+        Serial.println(F("Error opening file for writing!"));
+      }
+    }
+  } else {
+    Serial.println(F("Error opening file for reading!"));
+  }
+}
+
+void addData2(String name, int id) {
+  dataFile = SD.open("userdata.txt", FILE_WRITE);
+  if (dataFile) {
+    // Write name and ID in pipe-separated format
+    dataFile.print(name);
+    dataFile.print("|");
+    dataFile.println(id);
+    dataFile.close();
+     Serial.println(F("Name written to file"));
+  } else {
+    Serial.println("Error opening file for writing!");
+  }
 }
 
 
